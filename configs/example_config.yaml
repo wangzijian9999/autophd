@@ -1,0 +1,94 @@
+# Example configuration for autophd/orchestrator.py.
+# Copy this file outside the template path before running real experiments.
+
+project:
+  root: .
+  name: autophd-auto-research
+  objective: >
+    Discover and validate a minimal algorithmic improvement for the target
+    research codebase under strict scientific-integrity gates.
+  scope: >
+    One candidate hypothesis per run. No SOTA claim may be made unless it is
+    backed by configured literature tools, official papers, and reproducible logs.
+
+state:
+  dir: .auto_research
+
+agents:
+  # Codex uses the local Codex CLI backed by your Codex API account.
+  # The trailing '-' makes codex read the task from stdin.
+  codex_patch_command: codex exec --json --sandbox workspace-write --cd {project_root} -
+  codex_reflect_command: codex exec --json --sandbox read-only --cd {project_root} -
+
+  # Claude Code uses your local logged-in Claude Code membership account.
+  # No ANTHROPIC_API_KEY is required here.
+  claude_review_command: claude -p --output-format json
+
+commands:
+  # Optional adapters. Replace these with commands that call AI-Scientist-v2,
+  # OpenScholar, PaperQA2, RD-Agent, Curie, or your own scripts.
+  # idea: python external/ai-scientist-v2/ai_scientist/perform_ideation_temp_free.py --workshop-file {project_root}/PROJECT_BRIEF.md
+
+  sanity:
+    - python -m py_compile autophd/orchestrator.py
+
+  # Replace these two commands with the real training/evaluation commands.
+  # The evaluator should print metrics parseable by metrics.extractors or write metrics.metrics_json.
+  train: "bash -lc 'echo \"train placeholder: configure commands.train before real runs\"'"
+  evaluate: "bash -lc 'echo \"psnr: 0.0\"; echo \"lpips: 1.0\"'"
+
+timeouts:
+  idea_seconds: 900
+  codex_patch_seconds: 1800
+  sanity_seconds: 600
+  train_seconds: 86400
+  evaluate_seconds: 3600
+  review_seconds: 1200
+
+files:
+  # The orchestrator rejects candidates that modify files outside this allowlist.
+  allowed_paths:
+    - models
+    - configs
+    - scripts
+    - experiments
+    - research_src
+
+metrics:
+  metrics_json:
+  primary:
+    name: psnr
+    mode: maximize
+    baseline: 0.0
+    min_delta: 0.01
+    allow_first_parent: true
+  extractors:
+    - name: psnr
+      source: evaluate_stdout
+      regex: 'psnr:\s*([0-9.]+)'
+      type: float
+    - name: lpips
+      source: evaluate_stdout
+      regex: 'lpips:\s*([0-9.]+)'
+      type: float
+  non_regression:
+    - name: lpips
+      max_value: 1.0
+
+evidence:
+  require_files: false
+  required_files: []
+
+review:
+  # Set true if every promoted candidate must have a successful Claude Code review call.
+  require_claude_review: false
+
+git:
+  require_clean_worktree: true
+  ignore_status_paths:
+    - .auto_research
+  create_candidate_branch: true
+  candidate_branch_prefix: auto-research
+  rollback_rejected_candidate: true
+  return_to_parent_branch: true
+  promotion_commit_message: "auto-research: promote {run_id}"
